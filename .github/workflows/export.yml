@@ -8,35 +8,35 @@ jobs:
     steps:
       - name: Pull and save images
         run: |
+          docker pull langgenius/dify-api:1.14.2
           docker pull langgenius/dify-web:1.14.2
           docker pull langgenius/dify-sandbox:0.2.15
           docker pull langgenius/dify-plugin-daemon:0.6.1-local
-          docker pull semitechnologies/weaviate:1.27.0
-          docker pull postgres:15-alpine
-          docker pull nginx:15-alpine
+          docker pull langgenius/qdrant:1.8.3
+          docker pull nginx:1.25-alpine
           docker pull mysql:8.0
           docker pull redis:6-alpine
           docker pull ubuntu/squid:latest
           docker pull certbot/certbot:latest
+          docker pull semitechnologies/weaviate:1.27.0
+          docker pull postgres:15-alpine
           docker pull busybox:latest
-          docker pull langgenius/dify-api:1.14.2
-          docker pull langgenius/qdrant:1.8.3
           
           # 合并所有镜像到一个 tar
           docker save -o dify-images.tar \
+            langgenius/dify-api:1.14.2 \
             langgenius/dify-web:1.14.2 \
             langgenius/dify-sandbox:0.2.15 \
             langgenius/dify-plugin-daemon:0.6.1-local \
-            semitechnologies/weaviate:1.27.0 \
-            postgres:15-alpine \
-            nginx:15-alpine \
+            langgenius/qdrant:1.8.3 \
+            nginx:1.25-alpine \
             mysql:8.0 \
             redis:6-alpine \
             ubuntu/squid:latest \
             certbot/certbot:latest \
-            busybox:latest \
-            langgenius/dify-api:1.14.2 \
-            langgenius/qdrant:1.8.3
+            semitechnologies/weaviate:1.27.0 \
+            postgres:15-alpine \
+            busybox:latest
           
           # 检查大小
           ls -lh dify-images.tar
@@ -45,12 +45,10 @@ jobs:
       - name: Upload to transfer.sh
         id: upload
         run: |
-          # 分卷上传 (transfer.sh 单文件最大 10GB)
-          # 1. 先压缩
-          gzip dify-images.tar
+          # 压缩后上传
+          gzip -f dify-images.tar
           ls -lh dify-images.tar.gz
           
-          # 2. 上传到 transfer.sh
           UPLOAD_URL=$(curl --upload-file dify-images.tar.gz https://transfer.sh/dify-images.tar.gz)
           echo "DOWNLOAD_URL=$UPLOAD_URL" >> $GITHUB_OUTPUT
           echo "Download URL: $UPLOAD_URL"
