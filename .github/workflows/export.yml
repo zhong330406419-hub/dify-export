@@ -1,51 +1,25 @@
-name: Push Dify Images to ACR
+name: Export Dify Images
 on:
   workflow_dispatch
 
 jobs:
-  push:
+  export:
     runs-on: ubuntu-latest
     steps:
-      - name: Login to ACR
+      - name: Login to Aliyun ACR
         run: |
-          echo "${{ secrets.ACR_PASSWORD }}" | docker login crpi-c0fhsekjcwzw1khh-vpc.cn-zhangjiakou.personal.cr.aliyuncs.com -u "${{ secrets.ACR_USERNAME }}" --password-stdin
-      
-      - name: Pull and re-tag all images
+          echo "${{ secrets.ACR_PASSWORD }}" | docker login crpi-c0fhsekjcwzw1khh.cn-zhangjiakou.personal.cr.aliyuncs.com -u "${{ secrets.ACR_USERNAME }}" --password-stdin
+
+      - name: Pull, retag, push all images
         run: |
-          ACR="crpi-c0fhsekjcwzw1khh-vpc.cn-zhangjiakou.personal.cr.aliyuncs.com/zhangzhong"
-          
-          # 拉取并重新打 tag
-          docker pull langgenius/dify-api:1.14.2 && docker tag langgenius/dify-api:1.14.2 $ACR/dify-api:1.14.2
-          docker pull langgenius/dify-web:1.14.2 && docker tag langgenius/dify-web:1.14.2 $ACR/dify-web:1.14.2
-          docker pull langgenius/dify-sandbox:0.2.15 && docker tag langgenius/dify-sandbox:0.2.15 $ACR/dify-sandbox:0.2.15
-          docker pull langgenius/dify-plugin-daemon:0.6.1-local && docker tag langgenius/dify-plugin-daemon:0.6.1-local $ACR/dify-plugin-daemon:0.6.1-local
-          docker pull nginx:1.25-alpine && docker tag nginx:1.25-alpine $ACR/nginx:1.25-alpine
-          docker pull mysql:8.0 && docker tag mysql:8.0 $ACR/mysql:8.0
-          docker pull redis:6-alpine && docker tag redis:6-alpine $ACR/redis:6-alpine
-          docker pull ubuntu/squid:latest && docker tag ubuntu/squid:latest $ACR/ubuntu-squid:latest
-          docker pull certbot/certbot:latest && docker tag certbot/certbot:latest $ACR/certbot:latest
-          docker pull semitechnologies/weaviate:1.27.0 && docker tag semitechnologies/weaviate:1.27.0 $ACR/weaviate:1.27.0
-          docker pull postgres:15-alpine && docker tag postgres:15-alpine $ACR/postgres:15-alpine
-          docker pull busybox:latest && docker tag busybox:latest $ACR/busybox:latest
-          
-          echo "==ALL_TAGGED=="
-      
-      - name: Push all images to ACR
-        run: |
-          ACR="crpi-c0fhsekjcwzw1khh-vpc.cn-zhangjiakou.personal.cr.aliyuncs.com/zhangzhong"
-          
-          # 推送所有镜像
-          docker push $ACR/dify-api:1.14.2
-          docker push $ACR/dify-web:1.14.2
-          docker push $ACR/dify-sandbox:0.2.15
-          docker push $ACR/dify-plugin-daemon:0.6.1-local
-          docker push $ACR/nginx:1.25-alpine
-          docker push $ACR/mysql:8.0
-          docker push $ACR/redis:6-alpine
-          docker push $ACR/ubuntu-squid:latest
-          docker push $ACR/certbot:latest
-          docker push $ACR/weaviate:1.27.0
-          docker push $ACR/postgres:15-alpine
-          docker push $ACR/busybox:latest
-          
-          echo "==ALL_PUSHED=="
+          ACR=crpi-c0fhsekjcwzw1khh.cn-zhangjiakou.personal.cr.aliyuncs.com/zhangzhong/zzgit
+          for img in langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
+            echo "Processing $img"
+            docker pull $img
+            short=$(echo $img | tr '/' '_')
+            docker tag $img $ACR/$short
+            docker push $ACR/$short
+          done
+
+      - name: Summary
+        run: echo "All images pushed. Now run: docker compose up -d on your ECS"
