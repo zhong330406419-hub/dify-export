@@ -12,7 +12,6 @@ jobs:
           docker pull langgenius/dify-web:1.14.2
           docker pull langgenius/dify-sandbox:0.2.15
           docker pull langgenius/dify-plugin-daemon:0.6.1-local
-          docker pull langgenius/qdrant:1.8.3
           docker pull nginx:1.25-alpine
           docker pull mysql:8.0
           docker pull redis:6-alpine
@@ -28,7 +27,6 @@ jobs:
             langgenius/dify-web:1.14.2 \
             langgenius/dify-sandbox:0.2.15 \
             langgenius/dify-plugin-daemon:0.6.1-local \
-            langgenius/qdrant:1.8.3 \
             nginx:1.25-alpine \
             mysql:8.0 \
             redis:6-alpine \
