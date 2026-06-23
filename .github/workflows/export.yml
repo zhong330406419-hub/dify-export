@@ -1,20 +1,40 @@
-name: Export Dify Images
+name: Push Dify Images to ECS
 on:
   workflow_dispatch
 jobs:
-  export:
+  push:
     runs-on: ubuntu-latest
     steps:
-      - name: Login to Aliyun ACR
+      - name: Pull and save images
         run: |
-          echo "${{ secrets.ACR_PASSWORD }}" | docker login crpi-c0fhsekjcwzw1khh.cn-zhangjiakou.personal.cr.aliyuncs.com -u "${{ secrets.ACR_USERNAME }}" --password-stdin
-      - name: Pull retag push
-        run: |
-          ACR=crpi-c0fhsekjcwzw1khh.cn-zhangjiakou.personal.cr.aliyuncs.com/zhangzhong/zzgit
-          for img in langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
-            echo Processing $img
-            docker pull $img
-            short=$(echo $img | tr '/' '_')
-            docker tag $img $ACR/$short
-            docker push $ACR/$short
-          done
+          docker pull langgenius/dify-api:1.14.2 || true
+          docker pull langgenius/dify-web:1.14.2 || true
+          docker pull langgenius/dify-sandbox:0.2.15 || true
+          docker pull langgenius/dify-plugin-daemon:0.6.1-local || true
+          docker pull nginx:1.25-alpine || true
+          docker pull mysql:8.0 || true
+          docker pull redis:6-alpine || true
+          docker pull ubuntu/squid:latest || true
+          docker pull certbot/certbot:latest || true
+          docker pull semitechnologies/weaviate:1.27.0 || true
+          docker pull postgres:15-alpine || true
+          docker pull busybox:latest || true
+          docker save -o /tmp/dify-images.tar $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'langgenius|nginx|mysql|redis|ubuntu|certbot|semitechnologies|postgres|busybox' | tr '\n' ' ')
+          ls -lh /tmp/dify-images.tar
+      - name: Copy tar to ECS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          source: "/tmp/dify-images.tar"
+          target: "/tmp/dify-images.tar"
+      - name: Load images on ECS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: |
+            docker load -i /tmp/dify-images.tar
+            docker images | head -30
