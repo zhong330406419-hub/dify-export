@@ -1,5 +1,6 @@
 name: Export Dify Images
-on: workflow_dispatch
+on:
+  workflow_dispatch
 
 jobs:
   export:
@@ -18,6 +19,8 @@ jobs:
           docker pull ubuntu/squid:latest
           docker pull certbot/certbot:latest
           docker pull busybox:latest
+          docker pull langgenius/dify-api:1.14.2
+          docker pull langgenius/qdrant:1.8.3
           
           # 合并所有镜像到一个 tar
           docker save -o dify-images.tar \
@@ -31,14 +34,23 @@ jobs:
             redis:6-alpine \
             ubuntu/squid:latest \
             certbot/certbot:latest \
-            busybox:latest
+            busybox:latest \
+            langgenius/dify-api:1.14.2 \
+            langgenius/qdrant:1.8.3
           
           # 检查大小
           ls -lh dify-images.tar
-
+          echo "==TAR_READY=="
+      
       - name: Upload to transfer.sh
+        id: upload
         run: |
-          curl --upload-file dify-images.tar https://transfer.sh/dify-images.tar
-
-      - name: Print download URL
-        run: echo "Download URL: 上面那条命令的输出"
+          # 分卷上传 (transfer.sh 单文件最大 10GB)
+          # 1. 先压缩
+          gzip dify-images.tar
+          ls -lh dify-images.tar.gz
+          
+          # 2. 上传到 transfer.sh
+          UPLOAD_URL=$(curl --upload-file dify-images.tar.gz https://transfer.sh/dify-images.tar.gz)
+          echo "DOWNLOAD_URL=$UPLOAD_URL" >> $GITHUB_OUTPUT
+          echo "Download URL: $UPLOAD_URL"
