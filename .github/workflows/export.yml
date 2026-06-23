@@ -5,32 +5,35 @@ jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup
-        run: |
-          mkdir -p /tmp/img
-          echo "dir created"
       - name: Pull and save
         run: |
           set +e
+          mkdir -p /tmp/imgs
           for img in langgenius/dify-api:1.14.2 langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 redis:6-alpine ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
-            echo "=== $img ==="
-            docker pull $img 2>&1
+            docker pull $img
             safe=$(echo $img | tr '/:' '__')
-            docker save -o /tmp/img/${safe}.tar $img 2>&1
-            echo "---"
+            docker save -o /tmp/imgs/${safe}.tar $img
+            echo "Saved $img"
           done
-          echo "=== Final /tmp/img ==="
-          ls -la /tmp/img/
-          echo "=== File sizes ==="
-          du -h /tmp/img/*.tar 2>/dev/null || echo "no tar files"
+          ls -la /tmp/imgs/
+      - name: Ensure dir on ECS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: |
+            mkdir -p /tmp/imgs
+            rm -f /tmp/imgs/*.tar
+            echo "dir ready"
       - name: Copy to ECS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
-          source: "/tmp/img/"
-          target: "/tmp/img/"
+          source: "/tmp/imgs"
+          target: "/tmp/imgs"
       - name: Load on ECS
         uses: appleboy/ssh-action@v1
         with:
@@ -39,10 +42,10 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
             set +e
-            cd /tmp/img
+            cd /tmp/imgs
             for f in *.tar; do
               echo "=== Loading $f ==="
               docker load -i $f 2>&1
             done
-            echo "=== Final images on ECS ==="
+            echo "=== Final images ==="
             docker images
