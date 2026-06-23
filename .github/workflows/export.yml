@@ -5,6 +5,8 @@ on:
 jobs:
   export:
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: Pull and save images
         run: |
@@ -36,17 +38,28 @@ jobs:
             postgres:15-alpine \
             busybox:latest
           
-          # 检查大小
           ls -lh dify-images.tar
           echo "==TAR_READY=="
       
-      - name: Upload to transfer.sh
-        id: upload
+      - name: Push to GHCR as single image
         run: |
-          # 压缩后上传
-          gzip -f dify-images.tar
-          ls -lh dify-images.tar.gz
+          # 登录 GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          UPLOAD_URL=$(curl --upload-file dify-images.tar.gz https://transfer.sh/dify-images.tar.gz)
-          echo "DOWNLOAD_URL=$UPLOAD_URL" >> $GITHUB_OUTPUT
-          echo "Download URL: $UPLOAD_URL"
+          # 把所有镜像塞进一个大镜像的不同 tag
+          # 先建 Dockerfile 把 tar 复制进去
+          mkdir -p /tmp/difyimg
+          cp dify-images.tar /tmp/difyimg/
+          
+          cat > /tmp/difyimg/Dockerfile << 'EOF'
+          FROM scratch
+          COPY dify-images.tar /dify-images.tar
+          EOF
+          
+          # 推送为单一镜像
+          cd /tmp/difyimg
+          docker build -t ghcr.io/${{ github.actor }}/dify-images:latest .
+          docker push ghcr.io/${{ github.actor }}/dify-images:latest
+          
+          echo "==PUSHED=="
+          echo "Image: ghcr.io/${{ github.actor }}/dify-images:latest"
