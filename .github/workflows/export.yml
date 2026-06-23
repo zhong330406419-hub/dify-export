@@ -1,7 +1,6 @@
 name: Export Dify Images
 on:
   workflow_dispatch
-
 jobs:
   export:
     runs-on: ubuntu-latest
@@ -9,17 +8,13 @@ jobs:
       - name: Login to Aliyun ACR
         run: |
           echo "${{ secrets.ACR_PASSWORD }}" | docker login crpi-c0fhsekjcwzw1khh.cn-zhangjiakou.personal.cr.aliyuncs.com -u "${{ secrets.ACR_USERNAME }}" --password-stdin
-
-      - name: Pull, retag, push all images
+      - name: Pull retag push
         run: |
           ACR=crpi-c0fhsekjcwzw1khh.cn-zhangjiakou.personal.cr.aliyuncs.com/zhangzhong/zzgit
           for img in langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
-            echo "Processing $img"
+            echo Processing $img
             docker pull $img
             short=$(echo $img | tr '/' '_')
             docker tag $img $ACR/$short
             docker push $ACR/$short
           done
-
-      - name: Summary
-        run: echo "All images pushed. Now run: docker compose up -d on your ECS"
