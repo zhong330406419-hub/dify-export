@@ -1,0 +1,44 @@
+name: Export Dify Images
+on: workflow_dispatch
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and save images
+        run: |
+          docker pull langgenius/dify-web:1.14.2
+          docker pull langgenius/dify-sandbox:0.2.15
+          docker pull langgenius/dify-plugin-daemon:0.6.1-local
+          docker pull semitechnologies/weaviate:1.27.0
+          docker pull postgres:15-alpine
+          docker pull nginx:15-alpine
+          docker pull mysql:8.0
+          docker pull redis:6-alpine
+          docker pull ubuntu/squid:latest
+          docker pull certbot/certbot:latest
+          docker pull busybox:latest
+          
+          # 合并所有镜像到一个 tar
+          docker save -o dify-images.tar \
+            langgenius/dify-web:1.14.2 \
+            langgenius/dify-sandbox:0.2.15 \
+            langgenius/dify-plugin-daemon:0.6.1-local \
+            semitechnologies/weaviate:1.27.0 \
+            postgres:15-alpine \
+            nginx:15-alpine \
+            mysql:8.0 \
+            redis:6-alpine \
+            ubuntu/squid:latest \
+            certbot/certbot:latest \
+            busybox:latest
+          
+          # 检查大小
+          ls -lh dify-images.tar
+
+      - name: Upload to transfer.sh
+        run: |
+          curl --upload-file dify-images.tar https://transfer.sh/dify-images.tar
+
+      - name: Print download URL
+        run: echo "Download URL: 上面那条命令的输出"
