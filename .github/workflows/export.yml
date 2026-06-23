@@ -5,29 +5,25 @@ jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull images
+      - name: Setup
+        run: |
+          mkdir -p /tmp/img
+          echo "dir created"
+      - name: Pull and save
         run: |
           set +e
           for img in langgenius/dify-api:1.14.2 langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 redis:6-alpine ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
-            echo "=== Pulling $img ==="
-            docker pull $img
+            echo "=== $img ==="
+            docker pull $img 2>&1
+            safe=$(echo $img | tr '/:' '__')
+            docker save -o /tmp/img/${safe}.tar $img 2>&1
+            echo "---"
           done
-          echo "=== All pulled images ==="
-          docker images --format '{{.Repository}}:{{.Tag}}'
-      - name: Save to tar
-        run: |
-          mkdir -p /tmp/img
-          for img in langgenius/dify-api:1.14.2 langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 redis:6-alpine ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
-            if docker image inspect $img > /dev/null 2>&1; then
-              safe=$(echo $img | tr '/:' '__')
-              docker save -o /tmp/img/${safe}.tar $img
-              echo "Saved $img -> /tmp/img/${safe}.tar"
-            else
-              echo "MISSING $img, skip"
-            fi
-          done
-          ls -lh /tmp/img/
-      - name: Copy tar files to ECS
+          echo "=== Final /tmp/img ==="
+          ls -la /tmp/img/
+          echo "=== File sizes ==="
+          du -h /tmp/img/*.tar 2>/dev/null || echo "no tar files"
+      - name: Copy to ECS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.ECS_HOST }}
@@ -35,18 +31,18 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           source: "/tmp/img/"
           target: "/tmp/img/"
-      - name: Load images on ECS
+      - name: Load on ECS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
-            mkdir -p /tmp/img
+            set +e
             cd /tmp/img
             for f in *.tar; do
               echo "=== Loading $f ==="
-              docker load -i $f
+              docker load -i $f 2>&1
             done
             echo "=== Final images on ECS ==="
             docker images
