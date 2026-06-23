@@ -5,30 +5,36 @@ jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull and save images
+      - name: Pull images
         run: |
-          docker pull langgenius/dify-api:1.14.2 || true
-          docker pull langgenius/dify-web:1.14.2 || true
-          docker pull langgenius/dify-sandbox:0.2.15 || true
-          docker pull langgenius/dify-plugin-daemon:0.6.1-local || true
-          docker pull nginx:1.25-alpine || true
-          docker pull mysql:8.0 || true
-          docker pull redis:6-alpine || true
-          docker pull ubuntu/squid:latest || true
-          docker pull certbot/certbot:latest || true
-          docker pull semitechnologies/weaviate:1.27.0 || true
-          docker pull postgres:15-alpine || true
-          docker pull busybox:latest || true
-          docker save -o /tmp/dify-images.tar $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'langgenius|nginx|mysql|redis|ubuntu|certbot|semitechnologies|postgres|busybox' | tr '\n' ' ')
-          ls -lh /tmp/dify-images.tar
-      - name: Copy tar to ECS
+          set +e
+          for img in langgenius/dify-api:1.14.2 langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 redis:6-alpine ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
+            echo "=== Pulling $img ==="
+            docker pull $img
+          done
+          echo "=== All pulled images ==="
+          docker images --format '{{.Repository}}:{{.Tag}}'
+      - name: Save to tar
+        run: |
+          mkdir -p /tmp/img
+          for img in langgenius/dify-api:1.14.2 langgenius/dify-web:1.14.2 langgenius/dify-sandbox:0.2.15 langgenius/dify-plugin-daemon:0.6.1-local nginx:1.25-alpine mysql:8.0 redis:6-alpine ubuntu/squid:latest certbot/certbot:latest semitechnologies/weaviate:1.27.0 postgres:15-alpine busybox:latest; do
+            if docker image inspect $img > /dev/null 2>&1; then
+              safe=$(echo $img | tr '/:' '__')
+              docker save -o /tmp/img/${safe}.tar $img
+              echo "Saved $img -> /tmp/img/${safe}.tar"
+            else
+              echo "MISSING $img, skip"
+            fi
+          done
+          ls -lh /tmp/img/
+      - name: Copy tar files to ECS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
-          source: "/tmp/dify-images.tar"
-          target: "/tmp/dify-images.tar"
+          source: "/tmp/img/"
+          target: "/tmp/img/"
       - name: Load images on ECS
         uses: appleboy/ssh-action@v1
         with:
@@ -36,5 +42,11 @@ jobs:
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
-            docker load -i /tmp/dify-images.tar
-            docker images | head -30
+            mkdir -p /tmp/img
+            cd /tmp/img
+            for f in *.tar; do
+              echo "=== Loading $f ==="
+              docker load -i $f
+            done
+            echo "=== Final images on ECS ==="
+            docker images
