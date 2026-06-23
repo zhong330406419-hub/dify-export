@@ -5,7 +5,7 @@ jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull and save
+      - name: Pull and save individually
         run: |
           set +e
           mkdir -p /tmp/imgs
@@ -13,28 +13,22 @@ jobs:
             docker pull $img
             safe=$(echo $img | tr '/:' '__')
             docker save -o /tmp/imgs/${safe}.tar $img
-            echo "Saved $img"
           done
           ls -la /tmp/imgs/
-      - name: Ensure dir on ECS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.ECS_HOST }}
-          username: ${{ secrets.ECS_USER }}
-          key: ${{ secrets.ECS_SSH_KEY }}
-          script: |
-            mkdir -p /tmp/imgs
-            rm -f /tmp/imgs/*.tar
-            echo "dir ready"
-      - name: Copy to ECS
+      - name: Pack into one tar
+        run: |
+          cd /tmp/imgs
+          tar -cf /tmp/dify-images-bundle.tar *.tar
+          ls -lh /tmp/dify-images-bundle.tar
+      - name: Copy bundle to ECS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
-          source: "/tmp/imgs"
-          target: "/tmp/imgs"
-      - name: Load on ECS
+          source: "/tmp/dify-images-bundle.tar"
+          target: "/tmp/dify-images-bundle.tar"
+      - name: Unpack and load on ECS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.ECS_HOST }}
@@ -42,10 +36,13 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
             set +e
-            cd /tmp/imgs
+            cd /tmp
+            mkdir -p imgs
+            cd imgs
+            tar -xf /tmp/dify-images-bundle.tar
+            rm -f /tmp/dify-images-bundle.tar
             for f in *.tar; do
               echo "=== Loading $f ==="
-              docker load -i $f 2>&1
+              docker load -i $f
             done
-            echo "=== Final images ==="
             docker images
